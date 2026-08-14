@@ -1,4 +1,4 @@
-name: Build ruijie-auth APK
+name: Build ruijie-auth packages
 
 on:
   workflow_dispatch:
@@ -9,7 +9,20 @@ on:
 
 jobs:
   build:
+    name: Build (${{ matrix.sdk.name }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk:
+          - name: ImmortalWrt-25.12.1
+            distro: immortalwrt
+            base: https://downloads.immortalwrt.org/releases/25.12.1/targets/mediatek/filogic
+            sdk_pattern: immortalwrt-sdk-.*\.tar\.(xz|zst)$
+          - name: OpenWrt-snapshot
+            distro: openwrt
+            base: https://downloads.openwrt.org/snapshots/targets/mediatek/filogic
+            sdk_pattern: openwrt-sdk-.*\.tar\.(xz|zst)$
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -17,34 +30,33 @@ jobs:
       - name: Install host prerequisites
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc wget unzip python3 file rsync zstd
 
-      - name: Discover ImmortalWrt SDK (25.12.1, mediatek/filogic)
+      - name: Download and verify official SDK
         run: |
-          set -eu
-          BASES="https://downloads.immortalwrt.org/releases/25.12.1/targets/mediatek/filogic https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/25.12.1/targets/mediatek/filogic https://mirror.nju.edu.cn/immortalwrt/releases/25.12.1/targets/mediatek/filogic https://mirrors.aliyun.com/immortalwrt/releases/25.12.1/targets/mediatek/filogic"
-          SDK_NAME=""
-          SDK_BASE=""
-          for BASE in $BASES; do
-            echo "== trying $BASE =="
-            if wget -T 60 -t 2 -O listing.html "$BASE/" 2>listing.err; then
-              echo "-- listing fetched, sdk hrefs:"
-              grep -oE 'href="[^"]*immortalwrt-sdk[^"]*"' listing.html | head -n 5 || true
-              SDK_NAME=$(grep -oE 'href="[^"]*immortalwrt-sdk-[^"]*\.tar\.(xz|zst)"' listing.html | head -n1 | sed -e 's/^href="//' -e 's/"$//')
-            else
-              echo "-- wget failed:"
-              tail -n 5 listing.err || true
-            fi
-            if [ -n "$SDK_NAME" ]; then SDK_BASE="$BASE"; break; fi
-          done
+          set -euo pipefail
+          BASE='${{ matrix.sdk.base }}'
+          SDK_PATTERN='${{ matrix.sdk.sdk_pattern }}'
+          wget -T 60 -t 2 -O listing.html "$BASE/"
+          SDK_NAME="$(grep -oE 'href="[^"]+"' listing.html | sed -e 's/^href="//' -e 's/"$//' | grep -E "$SDK_PATTERN" | head -n1 || true)"
           if [ -z "$SDK_NAME" ]; then
-            echo "::error::no SDK tarball found on any mirror"
+            echo "::error::No SDK tarball found at $BASE"
             exit 1
           fi
-          echo "SDK_NAME=$SDK_NAME"
-          echo "SDK_BASE=$SDK_BASE"
-          wget -T 300 -O sdk.tar.zst "$SDK_BASE/$SDK_NAME"
-          tar xf sdk.tar.zst
-          mv immortalwrt-sdk-* sdk
-          echo "SDK unpacked: $(ls -d sdk)"
+          wget -T 60 -t 2 -O sha256sums "$BASE/sha256sums"
+          EXPECTED_SHA256="$(awk -v f="$SDK_NAME" '{name=$2; sub(/^\*/, "", name); if (name == f) { print $1; exit }}' sha256sums)"
+          if [ -z "$EXPECTED_SHA256" ]; then
+            echo "::error::Cannot find checksum entry for $SDK_NAME in official sha256sums"
+            exit 1
+          fi
+          wget -T 300 -O sdk.tar "$BASE/$SDK_NAME"
+          echo "$EXPECTED_SHA256  sdk.tar" | sha256sum -c -
+          SDK_ROOT="$(tar tf sdk.tar | head -n1 | cut -d/ -f1)"
+          tar xf sdk.tar
+          mv "$SDK_ROOT" sdk
+          {
+            echo "SDK_NAME=$SDK_NAME"
+            echo "SDK_BASE=$BASE"
+            echo "SDK_SHA256=$EXPECTED_SHA256"
+          } >> "$GITHUB_ENV"
 
       - name: Update and install feeds
         working-directory: sdk
@@ -73,8 +85,9 @@ jobs:
 
       - name: Stage packages
         run: |
+          set -euo pipefail
           mkdir -p dist
-          FOUND=$(find sdk/bin/packages -name 'ruijie-auth_*.apk' -o -name 'ruijie-auth_*.ipk' -o -name 'luci-app-ruijie-auth_*.apk' -o -name 'luci-app-ruijie-auth_*.ipk')
+          FOUND=$(find sdk/bin/packages -type f \( -name 'ruijie-auth_*.apk' -o -name 'ruijie-auth_*.ipk' -o -name 'luci-app-ruijie-auth_*.apk' -o -name 'luci-app-ruijie-auth_*.ipk' \))
           echo "found packages:"
           echo "$FOUND"
           if [ -z "$FOUND" ]; then
@@ -83,11 +96,23 @@ jobs:
             exit 1
           fi
           cp $FOUND dist/
+          for f in dist/*; do
+            [ -s "$f" ] || { echo "::error::$f is empty"; exit 1; }
+          done
+          (cd dist && sha256sum * > SHA256SUMS)
+          {
+            echo "distro=${{ matrix.sdk.distro }}"
+            echo "sdk_name=$SDK_NAME"
+            echo "sdk_base=$SDK_BASE"
+            echo "sdk_sha256=$SDK_SHA256"
+            echo "built_at_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          } > dist/build-info.txt
+          file dist/* > dist/file-types.txt
           ls -la dist
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: ruijie-auth-packages
+          name: ruijie-auth-packages-${{ matrix.sdk.distro }}
           path: dist/
           if-no-files-found: error

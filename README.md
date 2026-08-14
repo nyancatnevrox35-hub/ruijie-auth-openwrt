@@ -105,12 +105,23 @@
 
 ## 7. 免本地环境:GitHub Actions 云编译(推荐)
 
-本仓库自带 `.github/workflows/build.yml`。只要:
+本仓库自带 `.github/workflows/build.yml`，会并行构建两套官方 SDK:
+
+- `ImmortalWrt-25.12.1` (官方 releases SDK)
+- `OpenWrt-snapshot` (官方 snapshots SDK)
+
+每套构建都会先下载官方 `sha256sums` 并校验 SDK 压缩包完整性，然后再编译。只要:
 
 1. 把整个目录推到 GitHub 仓库;
-2. 打开 Actions 页面,选 "Build ruijie-auth APK" → **Run workflow**;
-3. 等约 10~20 分钟,从该次运行页下载 `ruijie-auth-packages` 附件;
+2. 打开 Actions 页面,选 "Build ruijie-auth packages" → **Run workflow**;
+3. 等约 10~20 分钟,从该次运行页分别下载:
+   - `ruijie-auth-packages-immortalwrt`
+   - `ruijie-auth-packages-openwrt`
 
-即可得到两个 `.apk`(你的固件为 ImmortalWrt 25.12.1 + apk 包管理器),
-随后 `apk add --allow-untrusted` 安装。工作流会在云端自动完成
-SDK 下载、feeds 安装与编译,无需本地 Linux 环境。
+附件内除 `.apk/.ipk` 外，还包含:
+
+- `SHA256SUMS` (产物哈希)
+- `build-info.txt` (SDK 来源与校验值)
+- `file-types.txt` (产物文件类型检查)
+
+工作流会在云端自动完成 SDK 下载、官方校验、feeds 安装与编译,无需本地 Linux 环境。
