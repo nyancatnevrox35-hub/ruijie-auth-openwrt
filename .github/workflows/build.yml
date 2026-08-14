@@ -71,19 +71,23 @@ jobs:
         working-directory: sdk
         run: make package/luci-app-ruijie-auth/compile V=s
 
-      - name: Locate artifacts
+      - name: Stage packages
         run: |
-          echo "=== produced packages ==="
-          find sdk/bin/packages -name 'ruijie-auth*' -o -name 'luci-app-ruijie-auth*' | sort
-          find sdk/bin/packages -name 'ruijie-auth*.apk' -o -name 'luci-app-ruijie-auth*.apk' -o -name 'ruijie-auth*.ipk' -o -name 'luci-app-ruijie-auth*.ipk' | xargs -r sha256sum
+          mkdir -p dist
+          FOUND=$(find sdk/bin/packages -name 'ruijie-auth_*.apk' -o -name 'ruijie-auth_*.ipk' -o -name 'luci-app-ruijie-auth_*.apk' -o -name 'luci-app-ruijie-auth_*.ipk')
+          echo "found packages:"
+          echo "$FOUND"
+          if [ -z "$FOUND" ]; then
+            echo "::error::no .apk/.ipk produced; listing sdk/bin:"
+            find sdk/bin -maxdepth 4 | head -n 60
+            exit 1
+          fi
+          cp $FOUND dist/
+          ls -la dist
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
           name: ruijie-auth-packages
-          path: |
-            sdk/bin/packages/aarch64_cortex-a53/base/ruijie-auth_*.apk
-            sdk/bin/packages/aarch64_cortex-a53/base/ruijie-auth_*.ipk
-            sdk/bin/packages/aarch64_cortex-a53/luci/luci-app-ruijie-auth_*.apk
-            sdk/bin/packages/aarch64_cortex-a53/luci/luci-app-ruijie-auth_*.ipk
+          path: dist/
           if-no-files-found: error
