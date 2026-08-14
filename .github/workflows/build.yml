@@ -59,6 +59,10 @@ jobs:
           cp -r "$GITHUB_WORKSPACE/package/ruijie-auth" package/
           cp -r "$GITHUB_WORKSPACE/package/luci-app-ruijie-auth" package/
 
+      - name: Generate SDK default config (defconfig)
+        working-directory: sdk
+        run: make defconfig
+
       - name: Compile ruijie-auth
         working-directory: sdk
         run: make package/ruijie-auth/compile V=s

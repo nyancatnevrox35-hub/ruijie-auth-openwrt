@@ -50,13 +50,17 @@
     mkdir -p package
     cp -r <本仓库>/package/ruijie-auth <本仓库>/package/luci-app-ruijie-auth package/
 
-    # 4) 编译
+    # 4) 生成默认配置(首次必需:否则 make 会尝试启动交互式 menuconfig,
+    #    无终端环境直接报 "Error opening terminal")
+    make defconfig
+
+    # 5) 编译
     make package/ruijie-auth/compile V=s
     make package/luci-app-ruijie-auth/compile V=s
 
-    # 5) 产物位置
-    #    bin/packages/<arch>/base/ruijie-auth_1.0.0-1_<arch>.ipk
-    #    bin/packages/<arch>/luci/luci-app-ruijie-auth_1.0.0-1_all.ipk
+    # 6) 产物位置(apk 固件为 .apk,opkg 固件为 .ipk)
+    #    bin/packages/<arch>/base/ruijie-auth_1.0.0-1_<arch>.apk
+    #    bin/packages/<arch>/luci/luci-app-ruijie-auth_1.0.0-1_all.apk
 
 ## 3. 安装与使用
 
