@@ -52,7 +52,7 @@ jobs:
           fi
           wget -T 300 -O sdk.tar "$BASE/$SDK_NAME"
           echo "$EXPECTED_SHA256  sdk.tar" | sha256sum -c -
-          SDK_ROOT="$(tar tf sdk.tar | head -n1 | cut -d/ -f1)"
+          SDK_ROOT="$(tar tf sdk.tar | sed -n '1p' | cut -d/ -f1)"
           tar xf sdk.tar
           mv "$SDK_ROOT" sdk
           {
