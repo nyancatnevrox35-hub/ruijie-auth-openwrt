@@ -1,0 +1,10 @@
+{
+	"admin/network/ruijie-auth": {
+		"title": "Ruijie 802.1X",
+		"order": 65,
+		"action": {
+			"type": "view",
+			"path": "ruijie-auth"
+		}
+	}
+}

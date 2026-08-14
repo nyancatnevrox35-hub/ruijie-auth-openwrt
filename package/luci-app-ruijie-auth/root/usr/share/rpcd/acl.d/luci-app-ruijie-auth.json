@@ -1,0 +1,19 @@
+{
+	"luci-app-ruijie-auth": {
+		"description": "Grant access to Ruijie 802.1X client procedures",
+		"read": {
+			"file": {
+				"/var/run/ruijie-auth.status": [ "read" ],
+				"/etc/init.d/ruijie-auth": [ "exec" ]
+			},
+			"uci": [ "ruijie" ]
+		},
+		"write": {
+			"file": {
+				"/var/run/ruijie-auth.status": [ "read" ],
+				"/etc/init.d/ruijie-auth": [ "exec" ]
+			},
+			"uci": [ "ruijie" ]
+		}
+	}
+}

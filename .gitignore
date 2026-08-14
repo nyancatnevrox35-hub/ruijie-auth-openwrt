@@ -1,0 +1,14 @@
+# OpenWrt SDK 构建产物
+*.ipk
+*.apk
+bin/
+build_dir/
+staging_dir/
+tmp/
+sdk/
+*.tar.xz
+*.tar.gz
+
+# 系统/编辑器垃圾文件
+Thumbs.db
+.DS_Store

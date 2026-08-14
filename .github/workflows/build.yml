@@ -1,0 +1,75 @@
+name: Build ruijie-auth APK
+
+# 手动触发(Actions 页面 Run workflow)或 push 到 package/ 时自动触发
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'package/**'
+      - '.github/workflows/build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install host prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends             build-essential libncurses-dev zlib1g-dev gawk git gettext             libssl-dev xsltproc wget unzip python3 file rsync
+
+      - name: Discover ImmortalWrt SDK (25.12.1, mediatek/filogic)
+        run: |
+          BASE="https://downloads.immortalwrt.org/releases/25.12.1/targets/mediatek/filogic"
+          SDK_NAME=$(wget -qO- "$BASE/" | grep -oE 'immortalwrt-sdk-25\.12\.1-mediatek-filogic[^"< ]*\.tar\.xz' | head -n1)
+          if [ -z "$SDK_NAME" ]; then
+            echo "::error::cannot find SDK tarball in $BASE/ (listing failed or version moved)"
+            exit 1
+          fi
+          echo "SDK_NAME=$SDK_NAME"
+          wget -q "$BASE/$SDK_NAME"
+          tar xf "$SDK_NAME"
+          mv immortalwrt-sdk-* sdk
+          echo "SDK unpacked: $(ls -d sdk)"
+
+      - name: Update and install feeds
+        working-directory: sdk
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Copy package sources into SDK
+        working-directory: sdk
+        run: |
+          mkdir -p package
+          cp -r "$GITHUB_WORKSPACE/package/ruijie-auth" package/
+          cp -r "$GITHUB_WORKSPACE/package/luci-app-ruijie-auth" package/
+
+      - name: Compile ruijie-auth
+        working-directory: sdk
+        run: make package/ruijie-auth/compile V=s
+
+      - name: Compile luci-app-ruijie-auth
+        working-directory: sdk
+        run: make package/luci-app-ruijie-auth/compile V=s
+
+      - name: Locate artifacts
+        run: |
+          echo "=== produced packages ==="
+          find sdk/bin/packages -name 'ruijie-auth*' -o -name 'luci-app-ruijie-auth*' | sort
+          find sdk/bin/packages -name 'ruijie-auth*.apk' -o -name 'luci-app-ruijie-auth*.apk' \
+               -o -name 'ruijie-auth*.ipk' -o -name 'luci-app-ruijie-auth*.ipk' \
+               | xargs -r sha256sum
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruijie-auth-packages
+          path: |
+            sdk/bin/packages/aarch64_cortex-a53/base/ruijie-auth_*.apk
+            sdk/bin/packages/aarch64_cortex-a53/base/ruijie-auth_*.ipk
+            sdk/bin/packages/aarch64_cortex-a53/luci/luci-app-ruijie-auth_*.apk
+            sdk/bin/packages/aarch64_cortex-a53/luci/luci-app-ruijie-auth_*.ipk
+          if-no-files-found: error
